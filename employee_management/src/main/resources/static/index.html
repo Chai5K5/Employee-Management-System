@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Employee App</title>
+    <style>
+        body { font-family: Arial; margin: 40px; }
+        .hidden { display: none; }
+        input, button { margin: 5px; padding: 8px; }
+        .card { border: 1px solid #ccc; padding: 15px; margin: 10px 0; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+
+<h2 id="title">Login</h2>
+
+<!-- LOGIN -->
+<div id="loginDiv">
+    <input id="username" placeholder="Username">
+    <input id="password" placeholder="Password" type="password">
+    <button onclick="login()">Login</button>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="hidden">
+
+    <h3>Welcome!</h3>
+    <button onclick="logout()">Logout</button>
+
+    <h3>Add Employee</h3>
+    <input id="name" placeholder="Name">
+    <input id="dept" placeholder="Department">
+    <input id="salary" placeholder="Salary">
+    <button onclick="addEmployee()">Add</button>
+
+    <h3>Employees</h3>
+    <button onclick="loadEmployees()">Refresh</button>
+
+    <div id="employeeList"></div>
+</div>
+
+<!-- MESSAGE -->
+<p id="message"></p>
+
+<script>
+    let token = "";
+
+    // LOGIN
+    async function login() {
+        let res = await fetch("/login", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                username: document.getElementById("username").value,
+                password: document.getElementById("password").value
+            })
+        });
+
+        let data = await res.json();
+
+        if (data.success) {
+            token = data.data;
+            document.getElementById("loginDiv").classList.add("hidden");
+            document.getElementById("dashboard").classList.remove("hidden");
+            document.getElementById("title").innerText = "Dashboard";
+            showMessage("Login successful", true);
+            loadEmployees();
+        } else {
+            showMessage("Login failed", false);
+        }
+    }
+
+    // LOGOUT
+    function logout() {
+        token = "";
+        document.getElementById("dashboard").classList.add("hidden");
+        document.getElementById("loginDiv").classList.remove("hidden");
+        document.getElementById("title").innerText = "Login";
+    }
+
+    // ADD EMPLOYEE
+    async function addEmployee() {
+
+        const nameInput = document.getElementById("name");
+        const deptInput = document.getElementById("dept");
+        const salaryInput = document.getElementById("salary");
+
+        if (!nameInput.value || !deptInput.value || !salaryInput.value) {
+            showMessage("All fields required", false);
+            return;
+        }
+
+        let res = await fetch("/employees", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + token
+            },
+            body: JSON.stringify({
+                name: nameInput.value,
+                department: deptInput.value,
+                salary: parseFloat(salaryInput.value)
+            })
+        });
+
+        let data = await res.json();
+        showMessage(data.message, data.success);
+        loadEmployees();
+    }
+
+    // LOAD EMPLOYEES
+    async function loadEmployees() {
+        let res = await fetch("/employees", {
+            headers: {
+                "Authorization": "Bearer " + token
+            }
+        });
+
+        let data = await res.json();
+
+        if (!data.success) {
+            showMessage("Failed to load employees", false);
+            return;
+        }
+
+        let employeeList = document.getElementById("employeeList");
+        employeeList.innerHTML = "";
+
+        data.data.forEach(emp => {
+            let div = document.createElement("div");
+            div.className = "card";
+
+            div.innerHTML = `
+                <b>${emp.name}</b><br>
+                Dept: ${emp.department}<br>
+                Salary: ${emp.salary}<br><br>
+
+                <button onclick="markAttendance('${emp.id}')">Mark Attendance</button>
+                <button onclick="deleteEmployee('${emp.id}')">Delete</button>
+            `;
+
+            employeeList.appendChild(div);
+        });
+    }
+
+    // MARK ATTENDANCE
+    async function markAttendance(id) {
+
+        let res = await fetch("/attendance/mark/" + id, {
+            method: "POST",
+            headers: {
+                "Authorization": "Bearer " + token
+            }
+        });
+
+        let data = await res.json();
+
+        showMessage("Attendance marked for " + data.employeeName, true);
+    }
+
+    // DELETE
+    async function deleteEmployee(id) {
+        let res = await fetch("/employees/" + id, {
+            method: "DELETE",
+            headers: {
+                "Authorization": "Bearer " + token
+            }
+        });
+
+        let data = await res.json();
+        showMessage(data.message, data.success);
+        loadEmployees();
+    }
+
+    // MESSAGE
+    function showMessage(msg, isSuccess) {
+        let message = document.getElementById("message");
+        message.innerText = msg;
+        message.className = isSuccess ? "success" : "error";
+    }
+</script>
+
+</body>
+</html>
